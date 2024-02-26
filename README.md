@@ -88,6 +88,16 @@ git clone https://github.com/chabanyknikita/security-monitoring-template.git
 cd security-monitoring-template
 ```
 
+### Install helm repos for this stack
+```bash
+helm repo add jetstack https://charts.jetstack.io
+helm repo add stable https://charts.helm.sh/stable
+helm repo add falcosecurity https://falcosecurity.github.io/charts
+helm repo add aqua https://aquasecurity.github.io/helm-charts/
+helm repo update
+
+```
+
 #### Firstly you can disable what you want in charts/monitoring/charts/SVC/values.yaml, example:
 ```yaml
 grafana:
@@ -104,8 +114,6 @@ vmalert:
 #### Install nginx-Ingress and CertManger if you didn't install them
 
 ```bash
-helm repo add jetstack https://charts.jetstack.io
-helm repo update
 helm install \
 cert-manager jetstack/cert-manager \
 --namespace cert-manager \
@@ -205,8 +213,6 @@ helm upgrade ingress-nginx ingress-nginx \
 
 ### Install NFS:
 ```bash
-helm repo add stable https://charts.helm.sh/stable
-helm repo update
 helm upgrade -i nfs-server stable/nfs-server-provisioner --set persistence.enabled=true,persistence.size=20Gi -n monitoring --create-namespace
 ```
 
