@@ -1,0 +1,325 @@
+{{- /*
+Generated from 'alertmanager-overview' from https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/main/manifests/grafana-dashboardDefinitions.yaml
+Do not change in-place! In order to change this file first read following link:
+https://github.com/VictoriaMetrics/helm-charts/tree/master/charts/victoria-metrics-k8s-stack/hack
+*/ -}}
+{{- if .Values.defaultDashboardsEnabled }}
+{{- if .Values.grafanaOperatorDashboardsFormat.enabled }}
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ printf "%s-%s" (include "victoria-metrics-k8s-stack.fullname" $) "alertmanager-overview" | trunc 63 | trimSuffix "-" | trimSuffix "." }}
+  labels:
+    app: {{ include "victoria-metrics-k8s-stack.name" $ }}-grafana
+    {{- include "victoria-metrics-k8s-stack.labels" $ | nindent 4 }}
+spec:
+  {{- with .Values.grafanaOperatorDashboardsFormat.instanceSelector }}
+  instanceSelector:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- else }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ printf "%s-%s" (include "victoria-metrics-k8s-stack.fullname" $) "alertmanager-overview" | trunc 63 | trimSuffix "-" | trimSuffix "." }}
+  labels:
+    {{- if $.Values.grafana.sidecar.dashboards.label }}
+    {{ $.Values.grafana.sidecar.dashboards.label }}: "1"
+    {{- end }}
+    {{- if $.Values.grafana.sidecar.dashboards.additionalDashboardLabels }}
+    {{- range $key, $val := .Values.grafana.sidecar.dashboards.additionalDashboardLabels }}
+    {{ $key }}: {{ $val | quote }}
+    {{- end }}
+    {{- end }}
+    app: {{ include "victoria-metrics-k8s-stack.name" $ }}-grafana
+    {{- include "victoria-metrics-k8s-stack.labels" $ | nindent 4 }}
+    {{- if $.Values.grafana.sidecar.dashboards.additionalDashboardAnnotations }}
+  annotations:
+    {{- range $key, $val := .Values.grafana.sidecar.dashboards.additionalDashboardAnnotations }}
+    {{ $key }}: {{ $val | quote }}
+    {{- end }}
+    {{- end }}
+data:
+{{- end }}
+  {{ if not .Values.grafanaOperatorDashboardsFormat.enabled }}grafana-falco.{{ end }}json:  |-
+    {
+    "annotations": {
+        "list": [
+        {
+            "builtIn": 1,
+            "datasource": {
+            "type": "datasource",
+            "uid": "grafana"
+            },
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "target": {
+            "limit": 100,
+            "matchAny": false,
+            "tags": [],
+            "type": "dashboard"
+            },
+            "type": "dashboard"
+        }
+        ]
+    },
+    "description": "Grafana dashboard for Falco output events",
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "gnetId": 11914,
+    "graphTooltip": 0,
+    "links": [],
+    "liveNow": false,
+    "panels": [
+        {
+        "aliasColors": {},
+        "bars": false,
+        "dashLength": 10,
+        "dashes": false,
+        "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+        },
+        "description": "",
+        "fieldConfig": {
+            "defaults": {
+            "links": []
+            },
+            "overrides": []
+        },
+        "fill": 1,
+        "fillGradient": 0,
+        "gridPos": {
+            "h": 11,
+            "w": 24,
+            "x": 0,
+            "y": 0
+        },
+        "hiddenSeries": false,
+        "id": 2,
+        "legend": {
+            "alignAsTable": true,
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "rightSide": true,
+            "show": true,
+            "total": false,
+            "values": false
+        },
+        "lines": true,
+        "linewidth": 1,
+        "nullPointMode": "null",
+        "options": {
+            "alertThreshold": true
+        },
+        "percentage": false,
+        "pluginVersion": "9.3.0",
+        "pointradius": 2,
+        "points": false,
+        "renderer": "flot",
+        "seriesOverrides": [],
+        "spaceLength": 10,
+        "stack": true,
+        "steppedLine": false,
+        "targets": [
+            {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+            },
+            "expr": "rate(falco_events[5m])",
+            "intervalFactor": 1,
+            "legendFormat": "{{`{{`}} rule {{`}}`}} ({{`{{`}} hostname {{`}}`}})",
+            "refId": "A"
+            }
+        ],
+        "thresholds": [],
+        "timeRegions": [],
+        "title": "Events rate",
+        "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+        },
+        "type": "graph",
+        "xaxis": {
+            "mode": "time",
+            "show": true,
+            "values": []
+        },
+        "yaxes": [
+            {
+            "format": "short",
+            "logBase": 1,
+            "show": true
+            },
+            {
+            "format": "short",
+            "logBase": 1,
+            "show": true
+            }
+        ],
+        "yaxis": {
+            "align": false
+        }
+        },
+        {
+        "columns": [],
+        "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+        },
+        "fontSize": "100%",
+        "gridPos": {
+            "h": 10,
+            "w": 24,
+            "x": 0,
+            "y": 11
+        },
+        "id": 4,
+        "links": [],
+        "showHeader": true,
+        "sort": {
+            "desc": false
+        },
+        "styles": [
+            {
+            "alias": "Time",
+            "align": "auto",
+            "dateFormat": "YYYY-MM-DD HH:mm:ss",
+            "pattern": "Time",
+            "type": "date"
+            },
+            {
+            "alias": "",
+            "align": "auto",
+            "colors": [
+                "rgba(245, 54, 54, 0.9)",
+                "rgba(237, 129, 40, 0.89)",
+                "rgba(50, 172, 45, 0.97)"
+            ],
+            "dateFormat": "YYYY-MM-DD HH:mm:ss",
+            "decimals": 2,
+            "link": false,
+            "mappingType": 1,
+            "pattern": "/__name__|job|kubernetes_name|(__name|helm_|app_|pod_).*/",
+            "thresholds": [],
+            "type": "hidden",
+            "unit": "short"
+            },
+            {
+            "alias": "Count",
+            "align": "auto",
+            "colors": [
+                "rgba(245, 54, 54, 0.9)",
+                "rgba(237, 129, 40, 0.89)",
+                "rgba(50, 172, 45, 0.97)"
+            ],
+            "dateFormat": "YYYY-MM-DD HH:mm:ss",
+            "decimals": 0,
+            "mappingType": 1,
+            "pattern": "Value",
+            "thresholds": [],
+            "type": "number",
+            "unit": "short"
+            },
+            {
+            "alias": "",
+            "align": "left",
+            "colors": [
+                "rgba(245, 54, 54, 0.9)",
+                "rgba(237, 129, 40, 0.89)",
+                "rgba(50, 172, 45, 0.97)"
+            ],
+            "dateFormat": "YYYY-MM-DD HH:mm:ss",
+            "decimals": 0,
+            "mappingType": 1,
+            "pattern": "priority",
+            "thresholds": [
+                ""
+            ],
+            "type": "number",
+            "unit": "none",
+            "valueMaps": [
+                {
+                "text": "5",
+                "value": "5"
+                }
+            ]
+            },
+            {
+            "alias": "",
+            "align": "left",
+            "colors": [
+                "rgba(245, 54, 54, 0.9)",
+                "rgba(237, 129, 40, 0.89)",
+                "rgba(50, 172, 45, 0.97)"
+            ],
+            "decimals": 2,
+            "pattern": "/.*/",
+            "thresholds": [],
+            "type": "string",
+            "unit": "short"
+            }
+        ],
+        "targets": [
+            {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+            },
+            "expr": "falco_events",
+            "format": "table",
+            "instant": true,
+            "refId": "A"
+            }
+        ],
+        "title": "Totals",
+        "transform": "table",
+        "transparent": true,
+        "type": "table-old"
+        }
+    ],
+    "schemaVersion": 37,
+    "style": "dark",
+    "tags": [],
+    "templating": {
+        "list": [
+        {
+            "current": {
+            "selected": true,
+            "text": "default",
+            "value": "default"
+            },
+            "hide": 0,
+            "includeAll": false,
+            "multi": false,
+            "name": "datasource",
+            "options": [],
+            "query": "prometheus",
+            "queryValue": "",
+            "refresh": 1,
+            "regex": "",
+            "skipUrlSync": false,
+            "type": "datasource"
+        }
+        ]
+    },
+    "time": {
+        "from": "now-6h",
+        "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "",
+    "title": "/ Kubernetes / Views / Falco Dashboard",
+    "uid": "FvUFlfuZz",
+    "version": 3,
+    "weekStart": ""
+    }
+{{- end }}

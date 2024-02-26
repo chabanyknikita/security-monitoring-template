@@ -1,0 +1,8 @@
+apiVersion: v2
+name: crd
+description: A subchart stores prometheus operator crd.
+type: application
+
+version: 1.0.0
+
+appVersion: "1.0.0"

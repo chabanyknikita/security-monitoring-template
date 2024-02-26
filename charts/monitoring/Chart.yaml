@@ -1,0 +1,31 @@
+apiVersion: v2
+name: monitoring
+description: A Helm chart for install multi-cluster monitoring stack
+keywords:
+- monitoring
+annotations:
+  category: Infrastructure
+  licenses: Apache-2.0
+maintainers:
+- name: nikita
+  email: nikchabaniuk@gmail.com
+type: application
+version: 1.0.1
+appVersion: 1.0.1
+dependencies:
+- name: loki-stack
+  repository: https://grafana.github.io/helm-charts
+  version: 2.9.11
+  condition: loki-stack.enabled
+- name: victoria-metrics-k8s-stack
+  version: 0.17.8
+  condition: victoria-metrics-k8s-stack.enabled
+- name: loki-distributed
+  version: 0.74.1
+  condition: loki-distributed.enabled
+- name: crd
+  version: 1.0.0
+  condition: crd.enabled
+- name: kube-bench-metrics
+  version: 0.1.0
+  condition: kube-bench-metrics.enabled

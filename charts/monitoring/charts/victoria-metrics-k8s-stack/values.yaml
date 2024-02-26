@@ -1,0 +1,694 @@
+nameOverride: ""
+fullnameOverride: ""
+tenant: "0"
+argocdReleaseOverride: ""
+defaultDashboardsEnabled: true
+experimentalDashboardsEnabled: true
+additionalVictoriaMetricsMap: {}
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# -------- MAIN --------
+
+defaultRules:
+  create: true
+  rules:
+    network: false
+    general: false
+    kubeStateMetrics: false
+    alertmanager: false
+
+    main: true
+    
+    k8s: false
+    etcd: false
+    kubeApiserver: false
+    kubeApiserverAvailability: false
+    kubeApiserverBurnrate: false
+    kubeApiserverHistogram: false
+    kubeApiserverSlos: false
+    kubelet: false
+    kubePrometheusGeneral: false
+    kubePrometheusNodeRecording: false
+    kubernetesApps: false
+    kubernetesResources: false
+    kubernetesStorage: false
+    kubernetesSystem: false
+    kubeScheduler: false
+    node: false
+    vmagent: false
+    vmsingle: false
+    vmhealth: false
+
+  runbookUrl: https://runbooks.prometheus-operator.dev/runbooks
+  appNamespacesTarget: ".*"
+  labels: {}
+  annotations: {}
+  additionalRuleLabels: {}
+
+grafana:
+  enabled: true
+  sidecar:
+    datasources:
+      enabled: true
+      initDatasources: true
+      createVMReplicasDatasources: false
+      jsonData: {}
+    dashboards:
+      additionalDashboardLabels: {}
+      additionalDashboardAnnotations: {}
+      enabled: true
+      multicluster: false
+
+  forceDeployDatasource: false
+
+  persistence:
+    type: pvc
+    enabled: true
+    accessModes:
+      - ReadWriteOnce
+    size: 5Gi
+
+  resources: 
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+      
+  additionalDataSources: []
+
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: "default"
+          orgId: 1
+          folder: ""
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+
+  dashboards:
+    default:
+      nodeexporter:
+        gnetId: 1860
+        revision: 22
+        datasource: VictoriaMetrics
+
+  defaultDashboardsTimezone: utc
+  defaultDatasourceType: "prometheus"
+
+   
+  ingress:
+    enabled: false
+    annotations:
+      certmanager.k8s.io/cluster-issuer: letsencrypt
+      cert-manager.io/cluster-issuer: letsencrypt
+      kubernetes.io/ingress.class: nginx
+      kubernetes.io/tls-acme: "true"
+    pathType: ImplementationSpecific
+    hosts: 
+      - grafana.example.com
+    tls: 
+     - secretName: grafana-ingress-tls
+       hosts:
+         - grafana.example.com
+
+  vmServiceScrape:
+    enabled: true
+    spec: {}
+
+alertmanager:
+  enabled: true
+  annotations: {}
+  spec:
+    selectAllByDefault: true
+    image:
+      tag: v0.25.0
+    externalURL: ""
+    routePrefix: /
+  resources:
+    limits:
+      cpu: 200Mi
+      memory: 512M
+    requests:
+      cpu: 150Mi
+      memory: 256M
+  monzoTemplate:
+    enabled: false
+  config:
+    templates:
+      - "/etc/vm/configs/**/*.tmpl"
+
+    route:
+      group_by: ["alertname", "cluster", "service"]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      receiver: "telega"
+    receivers:
+      - name: "telega"
+        telegram_configs:
+          - api_url: "https://api.telegram.org"
+            parse_mode: "HTML"
+            message: '{{ template "telegram.yucca.message" .}}'
+            chat_id: <chat_id>          
+            bot_token: <bot_token>
+
+    inhibit_rules:
+      - target_matchers:
+          - severity=~"warning|info"
+        source_matchers:
+          - severity=critical
+        equal:
+          - cluster
+          - namespace
+          - alertname
+      - target_matchers:
+          - severity=info
+        source_matchers:
+          - severity=warning
+        equal:
+          - cluster
+          - namespace
+          - alertname
+      - target_matchers:
+          - severity=info
+        source_matchers:
+          - alertname=InfoInhibitor
+        equal:
+          - cluster
+          - namespace
+
+  templateFiles:
+    template_1.tmpl: |-
+      {{ define "__yucca_text_alert_list" }}{{ range . }}
+      ---
+      🪪 <b>{{ .Labels.alertname }}</b>
+      {{- if .Annotations.summary }}
+      📝 {{ .Annotations.summary }}{{ end }}
+      {{- if .Annotations.description }}
+      📖 {{ .Annotations.description }}{{ end }}
+      🏷 Labels:
+      {{ range .Labels.SortedPairs }}  <i>{{ .Name }}</i>: <code>{{ .Value }}</code>
+      {{ end }}{{ end }}
+      {{ end }}
+
+      {{ define "telegram.yucca.message" }}
+      {{ if gt (len .Alerts.Firing) 0 }}
+      🔥 Alerts Firing 🔥
+      {{ template "__yucca_text_alert_list" .Alerts.Firing }}
+      {{ end }}
+      {{ if gt (len .Alerts.Resolved) 0 }}
+      ✅ Alerts Resolved ✅
+      {{ template "__yucca_text_alert_list" .Alerts.Resolved }}
+      {{ end }}
+      {{ end }}
+
+  ingress:
+    enabled: false
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      kubernetes.io/tls-acme: "true"
+    labels: {}
+    path: /
+    pathType: Prefix
+    hosts:
+      - alertmanager.domain.com
+    tls: 
+     - secretName: alertmanager-ingress-tls
+       hosts:
+         - alertmanager.domain.com
+
+victoria-metrics-operator:
+  enabled: true
+  cleanupCRD: true
+  cleanupImage:
+    repository: gcr.io/google_containers/hyperkube
+    tag: v1.18.0
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      cpu: 120m
+      memory: 320Mi
+    requests:
+      cpu: 80m
+      memory: 120Mi
+  createCRD: false 
+  operator:
+    disable_prometheus_converter: true
+
+# -------- Helpers Sources --------
+
+vmsingle:
+  annotations: {}
+  enabled: true
+  spec:
+    image:
+      tag: v1.93.4
+    retentionPeriod: "15d"
+    replicaCount: 1
+    extraArgs: {}
+    storage:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 8Gi
+    resources:
+      limits:
+        cpu: 300m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+    
+  ingress:
+    enabled: false
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      kubernetes.io/tls-acme: "true"
+    labels: {}
+    path: /
+    pathType: Prefix
+    hosts:
+      - vmsingle.domain.com
+    extraPaths: []
+    tls: 
+     - secretName: vmsingle-ingress-tls
+       hosts:
+         - vmsingle.domain.com
+
+vmalert:
+  annotations: {}
+  enabled: true
+  remoteWriteVMAgent: false
+  spec:
+    selectAllByDefault: true
+    image:
+      tag: v1.93.4
+    evaluationInterval: 15s
+    externalLabels: {}
+  templateFiles:
+    {}
+
+  ingress:
+    enabled: false
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      kubernetes.io/tls-acme: "true"
+    labels: {}
+    path: /
+    pathType: Prefix
+    hosts:
+      - vmalert.domain.com
+    extraPaths: []
+    tls: 
+     - secretName: vmalert-ingress-tls
+       hosts:
+         - vmalert.domain.com
+
+vmagent:
+  enabled: true
+  annotations: {}
+  additionalRemoteWrites: []
+  spec:
+    selectAllByDefault: true
+    image:
+      tag: v1.93.4
+    scrapeInterval: 20s
+    externalLabels:
+      cluster: cluster-name
+    extraArgs:
+      promscrape.streamParse: "true"
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+    inlineScrapeConfig: |
+      - job_name: 'ingress-nginx-endpoints'
+        kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+            - ingress-nginx
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+          action: keep
+          regex: true
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scheme]
+          action: replace
+          target_label: __scheme__
+          regex: (https?)
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+          action: replace
+          target_label: __metrics_path__
+          regex: (.+)
+        - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+          action: replace
+          target_label: __address__
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: prometheus-server
+          action: drop
+      - job_name: 'kube-bench'
+        scrape_interval: 15s
+        static_configs:
+            - targets:
+                - 'monitoring-kube-bench-metrics.monitoring.svc.cluster.local:80' 
+      - job_name: 'falco-exporter'
+        scrape_interval: 15s
+        static_configs:
+            - targets:
+                - 'falco-exporter.default.svc.cluster.local:9376' 
+      - job_name: 'trivy-operator'
+        scrape_interval: 15s
+        static_configs:
+            - targets:
+                - 'trivy-operator.trivy-system.svc.cluster.local:8080'       
+  ingress:
+    enabled: false
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      kubernetes.io/tls-acme: "true"
+    labels: {}
+    path: /
+    pathType: Prefix
+    hosts:
+      - vmagent.domain.com
+    extraPaths: []
+    tls: 
+     - secretName: vmagent-ingress-tls
+       hosts:
+         - vmagent.domain.com
+
+prometheus-node-exporter:
+  enabled: true
+  podLabels:
+    jobLabel: node-exporter
+  extraArgs:
+    - --collector.filesystem.ignored-mount-points=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
+    - --collector.filesystem.ignored-fs-types=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$
+
+  vmServiceScrape:
+    enabled: true
+    spec:
+      jobLabel: jobLabel
+      endpoints:
+        - port: metrics
+          metricRelabelConfigs:
+            - action: drop
+              source_labels: [mountpoint]
+              regex: "/var/lib/kubelet/pods.+"
+
+# -------- Kube --------
+
+kube-state-metrics:
+  enabled: true
+  vmServiceScrape:
+    enabled: true
+    spec: {}
+
+kubelet:
+  enabled: true
+  cadvisor: true
+  probes: true
+  spec:
+    scheme: "https"
+    honorLabels: true
+    interval: "30s"
+    scrapeTimeout: "5s"
+    tlsConfig:
+      insecureSkipVerify: true
+      caFile: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+    bearerTokenFile: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+    metricRelabelConfigs:
+      - action: labeldrop
+        regex: (uid)
+      - action: labeldrop
+        regex: (id|name)
+      - action: drop
+        source_labels: [__name__]
+        regex: (rest_client_request_duration_seconds_bucket|rest_client_request_duration_seconds_sum|rest_client_request_duration_seconds_count)
+    relabelConfigs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+      - sourceLabels: [__metrics_path__]
+        targetLabel: metrics_path
+      - targetLabel: "job"
+        replacement: "kubelet"
+    honorTimestamps: false
+
+kubeApiServer:
+  enabled: true
+  spec:
+    endpoints:
+      - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+        port: https
+        scheme: https
+        tlsConfig:
+          caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          serverName: kubernetes
+    jobLabel: component
+    namespaceSelector:
+      matchNames:
+        - default
+    selector:
+      matchLabels:
+        component: apiserver
+        provider: kubernetes
+
+kubeControllerManager:
+  enabled: true
+  endpoints: []
+  service:
+    enabled: true
+    port: 10257
+    targetPort: 10257
+  spec:
+    jobLabel: jobLabel
+    endpoints:
+      - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+        port: http-metrics
+        scheme: https
+        tlsConfig:
+          caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          serverName: kubernetes
+
+kubeEtcd:
+  enabled: true
+  endpoints: []
+  service:
+    enabled: true
+    port: 2379
+    targetPort: 2379
+  spec:
+    jobLabel: jobLabel
+    endpoints:
+      - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+        port: http-metrics
+        scheme: https
+        tlsConfig:
+          caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+
+kubeScheduler:
+  enabled: true
+  endpoints: []
+  service:
+    enabled: true
+    port: 10251
+    targetPort: 10251
+  spec:
+    jobLabel: jobLabel
+    endpoints:
+      - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+        port: http-metrics
+        scheme: https
+        tlsConfig:
+          caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+
+# -------- DNS --------
+
+coreDns:
+  enabled: true
+  service:
+    enabled: true
+    port: 9153
+    targetPort: 9153
+    selector:
+      k8s-app: kube-dns
+
+  spec:
+    endpoints:
+      - port: http-metrics
+        bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+kubeDns:
+  enabled: false
+  service:
+    enabled: false
+    dnsmasq:
+      port: 10054
+      targetPort: 10054
+    skydns:
+      port: 10055
+      targetPort: 10055
+    selector:
+      k8s-app: kube-dns
+  spec:
+    endpoints:
+      - port: http-metrics-dnsmasq
+        bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      - port: http-metrics-skydns
+        bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+# -------- CRDS --------
+
+crds:
+  enabled: true
+
+# -------- Additional sources --------
+
+grafanaOperatorDashboardsFormat:
+  enabled: false
+  instanceSelector:
+    matchLabels:
+      dashboards: "grafana"
+
+externalVM:
+  read:
+    url: ""
+  write:
+    url: ""
+
+vmcluster:
+  enabled: false
+  annotations: {}
+  spec:
+    retentionPeriod: "14"
+    replicationFactor: 1
+    vmstorage:
+      image:
+        tag: v1.93.4-cluster
+      replicaCount: 1
+      storageDataPath: "/vm-data"
+      storage:
+        volumeClaimTemplate:
+          spec:
+            resources:
+              requests:
+                storage: 5Gi
+      resources:
+        limits:
+          cpu: 500m
+          memory: 500Mi
+    vmselect:
+      image:
+        tag: v1.93.4-cluster
+      replicaCount: 1
+      cacheMountPath: "/select-cache"
+      extraArgs: {}
+      storage:
+        volumeClaimTemplate:
+          spec:
+            resources:
+              requests:
+                storage: 2Gi
+      resources:
+        limits:
+          cpu: 256m
+          memory: 256Mi
+        requests:
+          cpu: 128m
+          memory: 128m
+    vminsert:
+      image:
+        tag: v1.93.4-cluster
+      replicaCount: 1
+      extraArgs: {}
+      resources:
+        limits:
+          cpu: 256m
+          memory: 256Mi
+        requests:
+          cpu: 128m
+          memory: 128m
+
+  ingress:
+    storage:
+      enabled: false
+      annotations:
+        kubernetes.io/ingress.class: nginx
+        kubernetes.io/tls-acme: "true"
+      labels: {}
+      path: /
+      pathType: Prefix
+
+      hosts:
+        - vmstorage.domain.com
+      extraPaths: []
+      tls: 
+       - secretName: vmstorage-ingress-tls
+         hosts:
+           - vmstorage.domain.com
+    select:
+      enabled: false
+      annotations:
+        kubernetes.io/ingress.class: nginx
+        kubernetes.io/tls-acme: "true"
+      labels: {}
+      path: /
+      pathType: Prefix
+
+      hosts:
+        - vmselect.domain.com
+      extraPaths: []
+      tls: 
+       - secretName: vmselect-ingress-tls
+         hosts:
+           - vmselect.domain.com
+    insert:
+      enabled: false
+      annotations:
+        kubernetes.io/ingress.class: nginx
+        kubernetes.io/tls-acme: "true"
+      labels: {}
+      path: /
+      pathType: Prefix
+
+      hosts:
+        - vminsert.domain.com
+      extraPaths: []
+      tls: 
+       - secretName: vminsert-ingress-tls
+         hosts:
+           - vminsert.domain.com
+
+kubeProxy:
+  enabled: false
+  endpoints: []
+
+  service:
+    enabled: true
+    port: 10249
+    targetPort: 10249
+  spec:
+    jobLabel: jobLabel
+    endpoints:
+      - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+        # bearerTokenSecret:
+        #   key: ""
+        port: http-metrics
+        scheme: https
+        tlsConfig:
+          caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt

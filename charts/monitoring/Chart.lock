@@ -1,0 +1,21 @@
+dependencies:
+- name: loki-stack
+  repository: https://grafana.github.io/helm-charts
+  version: 2.9.11
+- name: victoria-metrics-k8s-stack
+  repository: ""
+  version: 0.17.8
+- name: crd
+  repository: ""
+  version: 1.0.0
+- name: loki-distributed
+  repository: ""
+  version: 0.74.1
+- name: kube-bench-metrics
+  repository: ""
+  version: 0.1.0
+- name: falco-exporter
+  repository: https://falcosecurity.github.io/charts
+  version: 0.9.11
+digest: sha256:e76f42a1f7ef6999c3f5d8ab37d2bb7e3f5b6f9452ee0e0fe98d05f059b8850e
+generated: "2024-02-21T11:48:46.665134+02:00"

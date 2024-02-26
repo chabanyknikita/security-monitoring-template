@@ -1,0 +1,108 @@
+global:
+  clusterIssuer:
+    enabled: true
+    email: anonymous@lnu.edu.ua
+
+crd:
+  enabled: false 
+  
+loki-distributed:
+  enabled: true
+  ingester:
+    persistence:
+      claims:
+        - name: data
+          size: 15Gi
+          storageClass: "nfs"
+  ruler:
+    enabled: true
+    directories: 
+      fake:
+        rules1.txt: |
+          groups:
+            - name: Errors
+              rules:
+                - alert: Error 5**
+                  expr: rate({namespace="<namespace>"} |~ "status=5.." | logfmt | label_format duration=duration,time=time,filename=filename,pid=pid,stream=stream,node_name=node_name,app=app,instance=instance[1m])>0
+                  for: 0m
+                  labels:
+                    severity: error
+                  annotations:
+                    summary: Error {{ $labels.status }} in {{ $labels.container }}
+                - alert: Severity level - Error
+                  annotations:
+                    message: "{{ $labels.container }} has level=error"
+                  expr: rate({namespace="<namespace>"} |~ "level=error" | logfmt | label_format duration=duration, time=time, filename=filename, pid=pid, stream=stream, node_name=node_name, app=app, instance=instance, ts=ts [1m])>0
+                  for: 0m
+                  labels:
+                    severity: error
+
+
+victoria-metrics-k8s-stack:
+  enabled: true
+  grafana:
+    enabled: true
+    ingress:
+      enabled: false
+      annotations:
+        certmanager.k8s.io/cluster-issuer: letsencrypt
+        cert-manager.io/cluster-issuer: letsencrypt
+        kubernetes.io/ingress.class: nginx
+        kubernetes.io/tls-acme: "true"
+      pathType: ImplementationSpecific
+      hosts: 
+        - grafana.example.com
+      tls: 
+      - secretName: grafana-ingress-tls
+        hosts:
+          - grafana.example.com
+  alertmanager:
+    enabled: true
+    config:
+      templates:
+        - "/etc/vm/configs/**/*.tmpl"
+
+      route:
+        group_by: ["alertname", "cluster", "service"]
+        group_wait: 30s
+        group_interval: 5m
+        repeat_interval: 4h
+        receiver: "telega"
+      receivers:
+        - name: "telega"
+          telegram_configs:
+            - api_url: "https://api.telegram.org"
+              parse_mode: "HTML"
+              message: '{{ template "telegram.yucca.message" .}}'
+              chat_id: <Chat Id> "chat_id must be integer"       
+              bot_token: <Bot Token> "bot_token must be string"
+
+
+loki-stack:
+  enabled: true
+  loki:
+    enabled: false
+    isDefault: false
+  promtail:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+    resources:
+      limits:
+        cpu: 50m
+        memory: 100Mi
+      requests:
+        cpu: 25m
+        memory: 50Mi
+    config:
+      logLevel: info
+      serverPort: 3101
+      clients:
+        - url: http://monitoring-loki-distributed-gateway:80/loki/api/v1/push
+
+
+kube-bench-metrics:
+  enabled: true
+
+falco-exporter:
+  enabled: true
