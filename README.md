@@ -81,6 +81,13 @@ Here are some details about install depends ..
 
 ## Pre-requirements
 
+#### Clone repo
+
+```bash
+git clone https://github.com/chabanyknikita/security-monitoring-template.git
+cd security-monitoring-template
+```
+
 #### Firstly you can disable what you want in charts/monitoring/charts/SVC/values.yaml, example:
 ```yaml
 grafana:
