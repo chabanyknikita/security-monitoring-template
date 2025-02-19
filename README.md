@@ -17,6 +17,7 @@ This stack include:
 - Kube-Bench Exporter
 - Falco Exporter
 - Trivy-Operator
+- Kyverno
 
 <details>
   <summary><strong>Alerts From AlertManager</strong></summary>
@@ -197,6 +198,7 @@ helm install kyverno kyverno/kyverno -n kyverno --create-namespace
 ### Install Kyverno Policies
 ```bash
 helm install kyverno-policies charts/kyverno-policies
+```
 
 ### Install trivy operator
 
