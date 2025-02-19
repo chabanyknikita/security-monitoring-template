@@ -1,47 +1,44 @@
 global:
   clusterIssuer:
-    enabled: true
-    email: anonymous@lnu.edu.ua
+    enabled: false
+    email: anongmail.com
 
 crd:
   enabled: false 
-  
-loki-distributed:
-  enabled: true
-  ingester:
-    persistence:
-      claims:
-        - name: data
-          size: 15Gi
-          storageClass: "nfs"
-  ruler:
-    enabled: true
-    directories: 
-      fake:
-        rules1.txt: |
-          groups:
-            - name: Errors
-              rules:
-                - alert: Error 5**
-                  expr: rate({namespace="<namespace>"} |~ "status=5.." | logfmt | label_format duration=duration,time=time,filename=filename,pid=pid,stream=stream,node_name=node_name,app=app,instance=instance[1m])>0
-                  for: 0m
-                  labels:
-                    severity: error
-                  annotations:
-                    summary: Error {{ $labels.status }} in {{ $labels.container }}
-                - alert: Severity level - Error
-                  annotations:
-                    message: "{{ $labels.container }} has level=error"
-                  expr: rate({namespace="<namespace>"} |~ "level=error" | logfmt | label_format duration=duration, time=time, filename=filename, pid=pid, stream=stream, node_name=node_name, app=app, instance=instance, ts=ts [1m])>0
-                  for: 0m
-                  labels:
-                    severity: error
-
 
 victoria-metrics-k8s-stack:
   enabled: true
+
   grafana:
     enabled: true
+
+    sidecar:
+      datasources:
+        enabled: true
+        initDatasources: true
+        createVMReplicasDatasources: false
+        jsonData: {}
+      dashboards:
+        additionalDashboardLabels: {}
+        additionalDashboardAnnotations: {}
+        enabled: true
+        multicluster: false
+
+    persistence:
+      type: pvc
+      enabled: true
+      accessModes:
+        - ReadWriteOnce
+      size: 5Gi
+
+    resources: 
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
     ingress:
       enabled: false
       annotations:
@@ -56,8 +53,20 @@ victoria-metrics-k8s-stack:
       - secretName: grafana-ingress-tls
         hosts:
           - grafana.example.com
+
   alertmanager:
-    enabled: true
+    enabled: false
+    spec:
+      image:
+        tag: v0.25.0
+      routePrefix: /
+    resources:
+      limits:
+        cpu: 200Mi
+        memory: 512M
+      requests:
+        cpu: 150Mi
+        memory: 256M
     config:
       templates:
         - "/etc/vm/configs/**/*.tmpl"
@@ -74,15 +83,274 @@ victoria-metrics-k8s-stack:
             - api_url: "https://api.telegram.org"
               parse_mode: "HTML"
               message: '{{ template "telegram.yucca.message" .}}'
-              chat_id: <Chat Id> "chat_id must be integer"       
-              bot_token: <Bot Token> "bot_token must be string"
+              chat_id: <chat_id>          
+              bot_token: <bot_token>
 
+    ingress:
+      enabled: false
+      annotations:
+        certmanager.k8s.io/cluster-issuer: letsencrypt
+        cert-manager.io/cluster-issuer: letsencrypt
+        kubernetes.io/ingress.class: nginx
+        kubernetes.io/tls-acme: "true"
+      labels: {}
+      path: /
+      pathType: Prefix
+      hosts:
+        - alertmanager.domain.com
+      tls: 
+      - secretName: alertmanager-ingress-tls
+        hosts:
+          - alertmanager.domain.com
+
+  vmsingle:
+    enabled: true
+
+    spec:
+      image:
+        tag: v1.93.4
+      retentionPeriod: "15d"
+
+      storage:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 8Gi
+
+      resources:
+        limits:
+          cpu: 300m
+          memory: 512Mi
+        requests:
+          cpu: 250m
+          memory: 256Mi
+
+  vmalert:
+    enabled: false
+    spec:
+      image:
+        tag: v1.110.0
+      evaluationInterval: 15s
+      datasource:
+        url: http://monitoring-victoria-metrics-auth:8427 
+
+    ingress:
+      enabled: false
+      annotations:
+        certmanager.k8s.io/cluster-issuer: letsencrypt
+        cert-manager.io/cluster-issuer: letsencrypt
+        kubernetes.io/ingress.class: nginx
+        kubernetes.io/tls-acme: "true"
+      labels: {}
+      path: /
+      pathType: Prefix
+      hosts:
+        - vmalert.domain.com
+      extraPaths: []
+      tls: 
+      - secretName: vmalert-ingress-tls
+        hosts:
+          - vmalert.domain.com
+
+  vmagent:
+    enabled: true
+
+    spec:
+      selectAllByDefault: true
+      image:
+        tag: v1.93.4
+      scrapeInterval: 20s
+      externalLabels:
+        cluster: cluster-name
+      extraArgs:
+        promscrape.streamParse: "true"
+
+      resources:
+        limits:
+          cpu: 100m
+          memory: 128Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
+
+      inlineScrapeConfig: |
+        - job_name: 'ingress-nginx-endpoints'
+          kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+              - ingress-nginx
+          relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scheme]
+            action: replace
+            target_label: __scheme__
+            regex: (https?)
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            target_label: __address__
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+          - source_labels: [__meta_kubernetes_service_name]
+            regex: prometheus-server
+            action: drop
+        - job_name: 'victoria-logs'
+          scrape_interval: 15s
+          static_configs:
+              - targets:
+                  - 'monitoring-victoria-logs-single-server:9428'
+        - job_name: 'kube-bench'
+          scrape_interval: 15s
+          static_configs:
+              - targets:
+                  - 'monitoring-kube-bench-metrics.monitoring.svc.cluster.local:80' 
+        - job_name: 'falco-exporter'
+          scrape_interval: 15s
+          static_configs:
+              - targets:
+                  - 'falco-exporter.default.svc.cluster.local:9376' 
+        - job_name: 'trivy-operator'
+          scrape_interval: 15s
+          static_configs:
+              - targets:
+                  - 'trivy-operator.trivy-system.svc.cluster.local:8080'
+
+victoria-logs-single:
+  enabled: true
+
+  server:
+    enabled: true
+    image:
+      repository: victoriametrics/victoria-logs
+      tag: ""
+      variant: victorialogs
+    replicaCount: 1
+    retentionPeriod: "15d"
+    # -- Data retention max capacity. Default unit is GiB. See these [docs](https://docs.victoriametrics.com/victorialogs/#retention-by-disk-space-usage)
+    retentionDiskSpaceUsage: ""
+
+    persistentVolume:
+      enabled: true
+      name: ""
+      accessModes:
+        - ReadWriteOnce
+      mountPath: /storage
+      size: 10Gi
+
+    resources:
+      {}
+      # limits:
+      #   cpu: 500m
+      #   memory: 512Mi
+      # requests:
+      #   cpu: 500m
+      #   memory: 512Mi
+
+    securityContext:
+      enabled: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+
+    podSecurityContext:
+      enabled: true
+      fsGroup: 2000
+      runAsNonRoot: true
+      runAsUser: 1000
+
+    ingress:
+      enabled: false
+      annotations:
+      #   kubernetes.io/ingress.class: nginx
+      #   kubernetes.io/tls-acme: 'true'
+      hosts:
+        - name: vlogs.local
+          path:
+            - /
+          port: http
+      tls: []
+      ingressClassName: ""
+      pathType: Prefix
+
+    statefulSet:
+      enabled: true
+      podManagementPolicy: OrderedReady
+      updateStrategy: {}
+
+victoria-metrics-auth:
+  enabled: true
+  image:
+    repository: victoriametrics/vmauth
+    tag: ""
+
+  extraArgs:
+    envflag.enable: true
+    envflag.prefix: VM_
+    loggerFormat: json
+    httpListenAddr: :8427
+
+  service:
+    enabled: true
+    servicePort: 8427
+
+
+  ingress:
+    enabled: false
+    annotations: 
+        certmanager.k8s.io/cluster-issuer: letsencrypt
+        cert-manager.io/cluster-issuer: letsencrypt
+        kubernetes.io/ingress.class: nginx
+        kubernetes.io/tls-acme: "true"
+    extraLabels: {}
+    hosts:
+      - name: vmauth.local
+        path:
+          - /
+        port: http
+    tls: []
+    ingressClassName: ""
+    pathType: Prefix
+
+  resources: {}
+    # limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # requests:
+    #   cpu: 100m
+    #   memory: 128Mi
+
+  config:
+    unauthorized_user:
+      url_map:
+      - src_paths:
+        - /alertmanager.*
+        url_prefix: http://vmalertmanager-monitoring-victoria-metrics-k8s-stack:9093
+      - src_paths:
+        - /vmui.*
+        url_prefix: http://vmsingle-monitoring-victoria-metrics-k8s-stack:8429
+      - src_paths:
+        - /prometheus.*
+        url_prefix: http://vmsingle-monitoring-victoria-metrics-k8s-stack:8429
+      - src_paths:
+        - /api/v1/query.*
+        url_prefix: http://vmsingle-monitoring-victoria-metrics-k8s-stack:8429
+      - src_paths:
+        - /select/logsql/.*
+        url_prefix: http://monitoring-victoria-logs-single-server:9428
+      default_url:
+        - http://vmalertmanager-monitoring-victoria-metrics-k8s-stack:9093
 
 loki-stack:
   enabled: true
-  loki:
-    enabled: false
-    isDefault: false
   promtail:
     enabled: true
     serviceMonitor:
@@ -98,11 +366,13 @@ loki-stack:
       logLevel: info
       serverPort: 3101
       clients:
-        - url: http://monitoring-loki-distributed-gateway:80/loki/api/v1/push
-
+        - url: http://monitoring-victoria-logs-single-server:9428/insert/loki/api/v1/push
+        
+  loki:
+    enabled: false
+    isDefault: false
+  test_pod:
+    enabled: false
 
 kube-bench-metrics:
-  enabled: true
-
-falco-exporter:
   enabled: true

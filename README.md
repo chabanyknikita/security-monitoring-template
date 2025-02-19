@@ -8,10 +8,11 @@
 
 This stack include:
 
-- Loki
 - Promtail
 - Grafana
 - Victoria Metrics Stack
+- Victoria Logs
+- Victoria Auth
 - Alertmanager
 - Kube-Bench Exporter
 - Falco Exporter
@@ -21,7 +22,7 @@ This stack include:
   <summary><strong>Alerts From AlertManager</strong></summary>
 
 - **Some alerts:**
-  - Loki Alerts on Errors in Logs
+  - Victoria Logs Alerts on Errors in Logs
   - Some default alerts
   - Kubernetes Node Not Ready
   - Kubernetes Memory Pressure
@@ -92,6 +93,7 @@ cd security-monitoring-template
 ```bash
 helm repo add jetstack https://charts.jetstack.io
 helm repo add stable https://charts.helm.sh/stable
+helm repo add kyverno https://kyverno.github.io/kyverno/
 helm repo add falcosecurity https://falcosecurity.github.io/charts
 helm repo add aqua https://aquasecurity.github.io/helm-charts/
 helm repo update
@@ -175,30 +177,6 @@ Example:
          - grafana.example.com
 ```
 
-#### Change namespace For Loki Alerts
-- Got to charts/monitoring/values.yaml in section loki-distributed.ruler.directories and change in all rules **namespace** on your, which you want to follow
-
-Example:
-```yaml
-              - alert: Error 5**
-                expr: rate({namespace="stage", container!="horizon"} |~ "status=5.." | logfmt | label_format duration=duration,time=time,filename=filename,pid=pid,stream=stream,node_name=node_name,app=app,instance=instance[1m])>0
-                for: 0m
-                labels:
-                  severity: error
-                annotations:
-                  summary: Error {{ $labels.status }} in {{ $labels.container }}
-
-# Or you can follow more than 1 namespace:
-
-              - alert: Error 5**
-                expr: rate({namespace=~"monitoring|stage|prod"} |~ "status=5.." | logfmt | label_format duration=duration,time=time,filename=filename,pid=pid,stream=stream,node_name=node_name,app=app,instance=instance[1m])>0
-                for: 0m
-                labels:
-                  severity: error
-                annotations:
-                  summary: Error {{ $labels.status }} in {{ $labels.container }}
-```
-
 ### Upgrade your nginx-ingress for collecting metrics
 ```bash
 helm upgrade ingress-nginx ingress-nginx \
@@ -211,16 +189,15 @@ helm upgrade ingress-nginx ingress-nginx \
 
 ## Installation
 
-### Install NFS:
+### Install Kyverno
 ```bash
-helm upgrade -i nfs-server stable/nfs-server-provisioner --set persistence.enabled=true,persistence.size=20Gi -n monitoring --create-namespace
+helm install kyverno kyverno/kyverno -n kyverno --create-namespace
 ```
 
-### Install CRD:
-
+### Install Kyverno Policies
 ```bash
-kubectl apply -f charts/monitoring/charts/crd/templates/crd.yaml
-```
+helm install kyverno-policies charts/kyverno-policies
+
 ### Install trivy operator
 
 ```bash

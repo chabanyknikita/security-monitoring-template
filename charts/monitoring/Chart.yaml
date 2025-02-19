@@ -29,3 +29,11 @@ dependencies:
 - name: kube-bench-metrics
   version: 0.1.0
   condition: kube-bench-metrics.enabled
+- name: victoria-logs-single
+  repository: https://victoriametrics.github.io/helm-charts/
+  version: 0.8.14
+  condition: victoria-logs-single.enabled
+- name: victoria-metrics-auth
+  version: ~0.8.0
+  repository: https://victoriametrics.github.io/helm-charts
+  condition: victoria-metrics-auth.enabled

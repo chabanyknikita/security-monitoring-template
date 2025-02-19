@@ -1,0 +1,14 @@
+apiVersion: v2
+name: kyverno-policies
+description: A Helm chart for install Kyverno policies
+keywords:
+- monitoring
+annotations:
+  category: Infrastructure
+  licenses: Apache-2.0
+maintainers:
+- name: nikita
+  email: nikchabaniuk@gmail.com
+type: application
+version: 1.0.1
+appVersion: 1.0.1

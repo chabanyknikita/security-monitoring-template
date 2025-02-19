@@ -5,17 +5,20 @@ dependencies:
 - name: victoria-metrics-k8s-stack
   repository: ""
   version: 0.17.8
-- name: crd
-  repository: ""
-  version: 1.0.0
 - name: loki-distributed
   repository: ""
   version: 0.74.1
+- name: crd
+  repository: ""
+  version: 1.0.0
 - name: kube-bench-metrics
   repository: ""
   version: 0.1.0
-- name: falco-exporter
-  repository: https://falcosecurity.github.io/charts
-  version: 0.9.11
-digest: sha256:e76f42a1f7ef6999c3f5d8ab37d2bb7e3f5b6f9452ee0e0fe98d05f059b8850e
-generated: "2024-02-21T11:48:46.665134+02:00"
+- name: victoria-logs-single
+  repository: https://victoriametrics.github.io/helm-charts/
+  version: 0.8.14
+- name: victoria-metrics-auth
+  repository: https://victoriametrics.github.io/helm-charts
+  version: 0.8.7
+digest: sha256:191ca6f5ec00fd037bae74c22c2df20d119124c2270c85ea1c6c282f0c045f85
+generated: "2025-02-19T22:27:14.356199+02:00"
